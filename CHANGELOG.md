@@ -168,6 +168,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 
 - Fixed setting device to root gpu ([#3042](https://github.com/PyTorchLightning/pytorch-lightning/pull/3042))
 
+- Fixed GpuUsageLogger to work on different platforms ([#3008](https://github.com/PyTorchLightning/pytorch-lightning/pull/3008))
 
 ## [0.8.5] - 2020-07-09
 
