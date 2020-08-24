@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 
 ### Changed
 
+- Refactored accelerator backends:
+   * moved TPU `xxx_step` to backend ([#3118](https://github.com/PyTorchLightning/pytorch-lightning/pull/3118))
+   * refactored DDP backend `forward` ([#3119](https://github.com/PyTorchLightning/pytorch-lightning/pull/3119))
+   * refactored GPU backend `__step` ([#3120](https://github.com/PyTorchLightning/pytorch-lightning/pull/3120))
+   * refactored Horovod backend ([#3121](https://github.com/PyTorchLightning/pytorch-lightning/pull/3121), [#3122](https://github.com/PyTorchLightning/pytorch-lightning/pull/3122))
+   * remove obscure forward call in eval + CPU backend `___step` ([#3123](https://github.com/PyTorchLightning/pytorch-lightning/pull/3123))
+   * reduced all simplified forward ([#3126](https://github.com/PyTorchLightning/pytorch-lightning/pull/3126))
+   * added hook base method ([#3127](https://github.com/PyTorchLightning/pytorch-lightning/pull/3127))
+   * refactor eval loop to use hooks - use `test_mode` for if so we can split later ([#3129](https://github.com/PyTorchLightning/pytorch-lightning/pull/3129))
+
 
 ### Deprecated
 
@@ -22,6 +32,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
 ### Fixed
 
 - Fixed `num_sanity_val_steps` is clipped to `limit_val_batches` ([#2917](https://github.com/PyTorchLightning/pytorch-lightning/pull/2917))
+
 
 ## [0.9.0] - YYYY-MM-DD
 
