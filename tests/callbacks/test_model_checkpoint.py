@@ -25,7 +25,23 @@ def test_model_checkpoint_with_non_string_input(tmpdir, save_top_k):
 
     trainer = Trainer(default_root_dir=tmpdir, checkpoint_callback=checkpoint, overfit_batches=0.20, max_epochs=2)
     trainer.fit(model)
+    print(tmpdir / trainer.logger.name / 'version_0' / 'checkpoints')
     assert checkpoint.dirpath == tmpdir / trainer.logger.name / 'version_0' / 'checkpoints'
+
+
+@pytest.mark.parametrize('checkpoint_save_interval', [0.0, 0.33, 0.5, 0.8])
+def test_model_checkpoint_with_infra_epoch_save(tmpdir, checkpoint_save_interval):
+    """ Test that None in checkpoint callback is valid and that chkp_path is set correctly """
+    tutils.reset_seed()
+    model = EvalModelTemplate()
+
+    checkpoint = ModelCheckpoint(filepath=None, checkpoint_save_interval=checkpoint_save_interval)
+
+    trainer = Trainer(default_root_dir=tmpdir, checkpoint_callback=checkpoint, overfit_batches=0.20, max_epochs=2)
+    try:
+        trainer.fit(model)
+    except Exception as e:
+        assert type(e) == ValueError
 
 
 @pytest.mark.parametrize(
@@ -77,6 +93,24 @@ class ModelCheckpointTestInvocations(ModelCheckpoint):
         assert (trainer.global_rank == 0 and self.count == self.expected_count) or (
             trainer.global_rank > 0 and self.count == 0
         )
+
+
+@pytest.mark.skipif(platform.system() == "Windows", reason="Distributed training is not supported on Windows")
+def test_model_checkpoint_no_extraneous_invocations_with_checkpoint_save_interval(tmpdir):
+    """ Test that None in checkpoint callback is valid and that chkp_path is set correctly """
+    tutils.reset_seed()
+    model = EvalModelTemplate()
+    num_epochs = 4
+    model_checkpoint = ModelCheckpointTestInvocations(expected_count=num_epochs * 2, checkpoint_save_interval=0.8)
+    trainer = Trainer(
+        distributed_backend='ddp_cpu',
+        num_processes=2,
+        default_root_dir=tmpdir,
+        early_stop_callback=False,
+        checkpoint_callback=model_checkpoint,
+        max_epochs=num_epochs,
+    )
+    trainer.fit(model)
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="Distributed training is not supported on Windows")

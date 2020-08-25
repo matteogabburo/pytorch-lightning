@@ -61,10 +61,14 @@ class ModelCheckpoint(Callback):
             :paramref:`~pytorch_lightning.trainer.trainer.Trainer.default_root_dir` or
             :paramref:`~pytorch_lightning.trainer.trainer.Trainer.weights_save_path` arguments,
             and if the Trainer uses a logger, the path will also contain logger name and version.
+            When saving infra-epoch checkpoints with `checkpoint_save_interval`, validation metrics
+            are not added to the checkpoint name, that is therefore of the form: ``
 
         monitor: quantity to monitor.
         verbose: verbosity mode. Default: ``False``.
-        save_last: always saves the model at the end of the epoch. Default: ``False``.
+        save_last: always saves the model at the end of the validation. Default: ``False``.
+        checkpoint_save_interval: How often within one training epoch
+            to check save a checkpoint. A float in `[0.0, 1.0]` is expected. Default: ``None``.
         save_top_k: if ``save_top_k == k``,
             the best k models according to
             the quantity monitored will be saved.
@@ -86,6 +90,7 @@ class ModelCheckpoint(Callback):
             saved (``model.save_weights(filepath)``), else the full model
             is saved (``model.save(filepath)``).
         period: Interval (number of epochs) between checkpoints.
+        prefix: Short string that can be used as prefix for all checkpoint file names.
 
     Example::
 
@@ -116,8 +121,8 @@ class ModelCheckpoint(Callback):
     CHECKPOINT_STATE_BEST_PATH = "checkpoint_callback_best_model_path"
 
     def __init__(self, filepath: Optional[str] = None, monitor: str = 'val_loss', verbose: bool = False,
-                 save_last: bool = False, save_top_k: int = 1, save_weights_only: bool = False,
-                 mode: str = 'auto', period: int = 1, prefix: str = ''):
+                 save_last: bool = False, checkpoint_save_interval: float = None, save_top_k: int = 1, 
+                 save_weights_only: bool = False, mode: str = 'auto', period: int = 1, prefix: str = ''):
         super().__init__()
         if(filepath):
             filepath = str(filepath)  # the tests pass in a py.path.local but we want a str
@@ -141,6 +146,7 @@ class ModelCheckpoint(Callback):
                 self.dirpath, self.filename = os.path.split(filepath)
             makedirs(self.dirpath)  # calls with exist_ok
         self.save_last = save_last
+        self.checkpoint_save_interval = checkpoint_save_interval
         self.save_top_k = save_top_k
         self.save_weights_only = save_weights_only
         self.period = period
@@ -230,7 +236,7 @@ class ModelCheckpoint(Callback):
 
         return monitor_op(current, self.best_k_models[self.kth_best_model_path])
 
-    def format_checkpoint_name(self, epoch, metrics, ver=None):
+    def format_checkpoint_name(self, epoch, metrics=None, step=None, ver=None):
         """Generate a filename according to the defined template.
 
         Example::
@@ -252,11 +258,17 @@ class ModelCheckpoint(Callback):
         # check if user passed in keys to the string
         groups = re.findall(r'(\{.*?)[:\}]', self.filename)
 
-        if len(groups) == 0:
+        if metrics is None or len(groups) == 0:
             # default name
-            filename = f'{self.prefix}_ckpt_epoch_{epoch}'
+            if step is not None:
+                filename = f'{self.prefix}_ckpt_epoch={epoch}_step={step}'
+            else:
+                filename = f'{self.prefix}_ckpt_epoch={epoch}'
         else:
             metrics['epoch'] = epoch
+            if step is not None:
+                metrics['step'] = step
+
             filename = self.filename
             for tmp in groups:
                 name = tmp[1:]
@@ -354,10 +366,10 @@ class ModelCheckpoint(Callback):
         self.epoch_last_check = epoch
 
         ckpt_name_metrics = trainer.logged_metrics
-        filepath = self.format_checkpoint_name(epoch, ckpt_name_metrics)
+        filepath = self.format_checkpoint_name(epoch, metrics=ckpt_name_metrics)
         version_cnt = 0
         while gfile.exists(filepath):
-            filepath = self.format_checkpoint_name(epoch, ckpt_name_metrics, ver=version_cnt)
+            filepath = self.format_checkpoint_name(epoch, metrics=ckpt_name_metrics, ver=version_cnt)
             # this epoch called before
             version_cnt += 1
 
@@ -391,6 +403,49 @@ class ModelCheckpoint(Callback):
         if self.save_last:
             filepath = os.path.join(self.dirpath, self.prefix + ModelCheckpoint.CHECKPOINT_NAME_LAST)
             self._save_model(filepath, trainer, pl_module)
+
+    @rank_zero_only
+    def on_batch_end(self, trainer, pl_module):
+        # only run on main process
+        if trainer.global_rank != 0:
+            return
+
+        if self.checkpoint_save_interval is not None:
+
+            epoch = trainer.current_epoch
+            step = trainer.global_step
+
+            filepath = self.format_checkpoint_name(epoch, metrics=None, step=step)
+            version_cnt = 0
+            while gfile.exists(filepath):
+                filepath = self.format_checkpoint_name(epoch, metrics=None, step=step, ver=version_cnt)
+                # this epoch called before
+                version_cnt += 1
+
+            assert trainer.global_rank == 0, 'tried to make a checkpoint from non global_rank=0'
+
+            # number of batches between every checkpoint
+            num_checkpoint_batches = int(trainer.num_training_batches * self.checkpoint_save_interval)
+
+            # if `checkpoint_save_interval` is too large, a checkpoint should be performed every epoch + some steps
+            if num_checkpoint_batches > trainer.num_training_batches:
+                raise ValueError(
+                    f'`checkpoint_save_interval` ({num_checkpoint_batches}) must be less than or equal '
+                    f'to the number of the training batches ({trainer.num_training_batches}). '
+                    'If you want to disable infra-epoch checkpointing set `checkpoint_save_interval` to `None` instead.')
+
+            # if `checkpoint_save_interval` is too small, a checkpoint should be performed more than once for each batch
+            if num_checkpoint_batches == 0:
+                raise ValueError(
+                    f'`checkpoint_save_interval` ({num_checkpoint_batches}) must be greater than 0. '
+                    'If you want to disable infra-epoch checkpointing set `checkpoint_save_interval` to `None` instead.')
+
+            # is it time to save a checkpoint?
+            if (trainer.batch_idx > 0) and (trainer.batch_idx % num_checkpoint_batches) == 0:
+                if self.verbose > 0:
+                    log.info(f'\nEpoch {epoch:05d}, step {step:08d}: saving model to {filepath}')
+
+                self._save_model(filepath, trainer, pl_module)
 
     def _do_check_save(self, filepath, current, epoch, trainer, pl_module):
         # remove kth
