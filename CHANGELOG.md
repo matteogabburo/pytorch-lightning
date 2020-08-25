@@ -21,6 +21,13 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/).
    * reduced all simplified forward ([#3126](https://github.com/PyTorchLightning/pytorch-lightning/pull/3126))
    * added hook base method ([#3127](https://github.com/PyTorchLightning/pytorch-lightning/pull/3127))
    * refactor eval loop to use hooks - use `test_mode` for if so we can split later ([#3129](https://github.com/PyTorchLightning/pytorch-lightning/pull/3129))
+   * moved `___step_end` hooks ([#3130](https://github.com/PyTorchLightning/pytorch-lightning/pull/3130))
+   * training forward refactor ([#3134](https://github.com/PyTorchLightning/pytorch-lightning/pull/3134))
+   * training AMP scaling refactor ([#3135](https://github.com/PyTorchLightning/pytorch-lightning/pull/3135))
+   * eval step scaling factor ([#3136](https://github.com/PyTorchLightning/pytorch-lightning/pull/3136))
+   * add eval loop object to streamline eval loop ([#3138](https://github.com/PyTorchLightning/pytorch-lightning/pull/3138))
+   * refactored dataloader process hook ([#3139](https://github.com/PyTorchLightning/pytorch-lightning/pull/3139))
+   * refactored inner eval loop ([#3141](https://github.com/PyTorchLightning/pytorch-lightning/pull/3141))
 
 
 ### Deprecated
