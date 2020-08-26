@@ -330,7 +330,7 @@ class TrainerIOMixin(ABC):
             weights_only: saving model weights only
 
         Return:
-             structured dictionary
+            structured dictionary
         """
         checkpoint = {
             'epoch': self.current_epoch + 1,
@@ -472,8 +472,8 @@ class TrainerIOMixin(ABC):
                             state[k] = v.cuda(self.root_gpu)
 
         # restore the lr schedulers
-        lr_schedulers = checkpoint['lr_schedulers']
-        for scheduler, lrs_state in zip(self.lr_schedulers, lr_schedulers):
+        lrs_states = checkpoint['lr_schedulers']
+        for scheduler, lrs_state in zip(self.lr_schedulers, lrs_states):
             scheduler['scheduler'].load_state_dict(lrs_state)
 
     # ----------------------------------
